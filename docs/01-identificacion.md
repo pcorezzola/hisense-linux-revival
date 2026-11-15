@@ -65,6 +65,64 @@ opción **no existe** en esta unidad.
 > (`/3rd_rw/widevine/keybox` y `/3rd_rw/widevine_eme/keybox`). Sin claves de dispositivo no hay
 > Netflix ni Prime Video posibles.
 
+## Compatibilidad con modelos hermanos (BGH y otras marcas)
+
+La unidad de referencia es Hisense **HLE4815RTFX**. Su hermano comercial es **BGH BLE4815RTFX**:
+misma mainboard `RSAG7.820.6487`, mismo chasis **MTK5655**, mismo SoC **MT5882**. No son dos
+productos distintos con el mismo nombre: es la misma plataforma, ensamblada y rebrandeada en
+Tierra del Fuego.
+
+### La prueba está en el firmware
+
+El rootfs de esta unidad contiene **las animaciones de arranque de todas las marcas** del
+programa, en `/basic`:
+
+| Carpeta | Marca | Archivos |
+|---|---|---|
+| `startupbgh/` | **BGH** | 12 PNG |
+| `startupnewsan/` | Newsan | 13 PNG |
+| `startuppanavox/` | Panavox | 12 PNG |
+| `startupoem/` | Genérica (OEM) | 12 PNG |
+| `startupkalley/` | Kalley | 1 PNG |
+| `startupsharp/` | Sharp | 1 PNG |
+| `startupimages/` | comunes | 15 PNG |
+
+La marca activa se resuelve en runtime con variables simples:
+
+```sh
+busybox cat /tmp/am_tv_brand        # p. ej. "his"
+busybox cat /tmp/am_tv_customer     # p. ej. "Hisense"
+busybox cat /tmp/am_tv_model_name
+```
+
+Es decir: el "modelo" cambia el logo y la animación de encendido, no la arquitectura del sistema.
+
+### Qué se hereda y qué no
+
+| Elemento | ¿Se hereda al BGH? |
+|---|---|
+| Puertos (56789/56790 DIAL, 9080 MDX, 9222 DevTools) | ✅ misma base |
+| Cadena de root (`Hisense.File` + `loadLibrary`) | ✅ misma UI y mismo plugin |
+| Hook de persistencia (`ModernTV_Launcher.pkg`) | ✅ mismo `run-Launcher`/`appselfupgrade.sh` |
+| Mapa de particiones y cadena de arranque | ✅ mismo `mtdparts` |
+| Stack gráfico (DirectFB 1.5.3 + `libmtal`) | ✅ mismas bibliotecas |
+| Cadena de herramientas (ARMv7 soft-float, glibc 2.18) | ✅ mismo ABI |
+| Build de firmware | ⚠️ **puede diferir** (se ven ramas distintas en el manual de servicio) |
+| MAC, claves de Widevine/PlayReady, EEPROM | ❌ **son por unidad**: no se copian ni se transfieren |
+| Calibración de panel (PQ) | ❌ es por unidad y por panel |
+
+### Cómo confirmar el modelo en cada equipo
+
+```sh
+curl -s http://<ip>:56790/dd.xml                 # fabricante y modelo anunciados
+# menú Factory: Sonido -> Config. avanzada -> Balance 0 -> 1 9 6 9  (versión y claves)
+curl -s http://<ip>:9222/json/version            # UA con OMI/... (con una app de internet abierta)
+```
+
+> La compatibilidad con una unidad BGH **no se probó físicamente**: se deduce de la placa, del
+> chasis y de que el firmware incluya sus recursos de marca. Confirmá el modelo antes de aplicar
+> cualquier cosa.
+
 ## Cómo confirmar el modelo en otra unidad
 
 1. Menú de usuario → Información → versión de software.

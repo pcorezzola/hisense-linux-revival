@@ -28,6 +28,50 @@ La meta fue recuperar el control del equipo **sin abrirlo, sin soldar y sin flas
 primero obtener una shell root, después hacerla persistente, y desde ahí construir lo que se
 pueda (UI propia, servicios, herramientas, y evaluar emuladores y YouTube).
 
+## 1.1 Modelos hermanos y compatibilidad (BGH y otras marcas)
+
+Este televisor no es un producto aislado: es **una plataforma rebrandeada**. La unidad de
+referencia es Hisense `HLE4815RTFX`, y su hermano directo es el **BGH `BLE4815RTFX`** (misma
+placa `RSAG7.820.6487`, mismo chasis MTK5655, mismo SoC MT5882).
+
+La evidencia más fuerte está en el propio firmware: `/basic` trae **las animaciones de arranque
+de todas las marcas** que usan este chasis:
+
+```
+/basic/startupbgh/        (12 PNG)   <- BGH
+/basic/startupnewsan/     (13 PNG)
+/basic/startuppanavox/    (12 PNG)
+/basic/startupoem/        (12 PNG)
+/basic/startupkalley/     (1 PNG)
+/basic/startupsharp/      (1 PNG)
+```
+
+La marca no es más que un par de variables (`/tmp/am_tv_brand`, `/tmp/am_tv_customer`) y la
+animación de encendido. Todo el resto del sistema es el mismo.
+
+### Qué debería aplicar tal cual al BGH BLE4815RTFX
+
+- Los **puertos y servicios** (DIAL 56789/56790, MDX 9080, DevTools 9222). [doc 02](docs/02-reconocimiento-red.md)
+- La **cadena de root** (`Hisense.File` + `loadLibrary` con *path traversal*). [doc 03](docs/03-conseguir-root.md)
+- El **hook de persistencia** (`ModernTV_Launcher.pkg` → `appselfupgrade.sh`). [doc 04](docs/04-persistencia.md)
+- El **mapa de particiones**, el stack gráfico (DirectFB 1.5.3 + `libmtal`) y la cadena de
+  herramientas soft-float. [docs 05](docs/05-sistema-y-particiones.md) y [06](docs/06-cadena-de-herramientas.md)
+
+### Qué puede diferir (verificar en cada unidad)
+
+| Diferencia | Cómo se comprueba |
+|---|---|
+| Build de firmware (p. ej. `V00.01.00A.F1012` vs otras ramas como `E58.V0000.K…`) | menú de usuario y menú Factory |
+| País/idioma/logo por defecto, set de apps | menú de usuario |
+| **MAC, claves de Widevine/PlayReady, EEPROM del panel** | **son de cada unidad**; no se transfieren ni se copian |
+
+Para confirmar el modelo en otra unidad: `GET http://<ip>:56790/dd.xml`, el menú Factory
+(secuencia 1969) o `http://localhost:9222/json/version` desde el navegador de apps.
+
+> Nada de esto se probó sobre una unidad BGH: la compatibilidad se deduce de la placa, del chasis
+> y de que el firmware incluya sus recursos de marca. Antes de aplicar algo, confirmá el modelo
+> con los tres métodos de arriba.
+
 ## 2. Qué se logró
 
 | Objetivo | Estado |
