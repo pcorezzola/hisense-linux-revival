@@ -132,9 +132,11 @@ basic 256k · perm 8M · 3rd_ro 320M · rw_area 750M · ... · data 2048M
    matar apps (es el **CVE-2026-123994**). Detalle: [docs/02](docs/02-reconocimiento-red.md).
 2. **Firmware y respaldos.** Se consiguió el paquete oficial (`upgrade_loader.pkg`) y un volcado
    crudo de la eMMC de otra unidad. Con eso se mapeó el sistema sin tocar el televisor.
-3. **DevTools del navegador de apps.** Al lanzar YouTube el navegador abre
-   `--remote-debugging-port=9222`: con Chrome DevTools Protocol se leyó todo el sistema de
-   archivos y se controló la pantalla.
+3. **DevTools del navegador de apps y `file://localhost`.** Con `Page.navigate` a URLs `file://`
+   el navegador **lista directorios y lee archivos** del sistema (la propia interfaz vive en
+   `file://localhost/3rd_rw/UI/hisenseUI/index.html`), y una página HTTP puede leer archivos con
+   XHR a `file://localhost/...` porque el motor no aplica mismo origen. Así se mapeó todo el
+   sistema antes de tener shell.
 4. **Escritura persistente.** La interfaz principal es HTML/JS en `/3rd_rw/UI/hisenseUI/`
    (escribible) y el navegador expone `Hisense.File` / `Hisense.loadLibrary`.
 5. **Ejecución nativa como root.** `Hisense.loadLibrary()` arma la ruta

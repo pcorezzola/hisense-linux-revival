@@ -63,6 +63,34 @@ ssh ... 'busybox mkdir -p /data/www_mia && /bin/busybox httpd -f -p 8092 -h /dat
 
 Útil porque el mismo origen evita CORS y no depende de ninguna PC.
 
+## Leer archivos del televisor desde el navegador (`file://localhost`)
+
+Sin shell, sin exploit. En el navegador de la interfaz, ir a:
+
+```
+file://localhost/          -> listado del raíz
+file://localhost/etc/passwd
+```
+
+Automatizado desde una página servida por HTTP (síncrono; no aplica mismo origen):
+
+```js
+var x = new XMLHttpRequest();
+x.open('GET', 'file://localhost/etc/inittab', false);
+x.send(null);
+var contenido = x.responseText;
+```
+
+Listados reales de directorio (el XHR no lista): con DevTools del navegador de apps —
+
+```python
+cdp(1, "Page.navigate", {"url": "file:///3rd_rw/UI/hisenseUI/"})
+print(cdp(2, "Runtime.evaluate", {"expression": "document.body.innerText"})["result"]["result"]["value"])
+```
+
+> Límite del XHR: archivo inexistente, directorio y archivo de 0 bytes devuelven lo mismo
+> (`status=0, len=0`). No sirve para comprobar existencia.
+
 ## Agregar una app al launcher
 
 ```sh

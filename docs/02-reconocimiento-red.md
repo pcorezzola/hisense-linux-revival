@@ -73,6 +73,75 @@ es lo que permitió leer el sistema de archivos completo y, después, llegar a u
 > Limitación: solo existe mientras corre una app de *internet*. El menú principal (Presto) no
 > expone DevTools; sus lanzadores fijan `BROWSER_DEBUG=NO`.
 
+## Lectura de todo el sistema de archivos con `file://localhost`
+
+Esto se descubrió casi por accidente, y es la razón por la que se pudo mapear el sistema **antes**
+de conseguir una shell: **el navegador del televisor lee y lista archivos locales** sin ninguna
+vulnerabilidad de por medio.
+
+### Lo que se ve al navegar
+
+En el navegador de la interfaz (Presto), ir a:
+
+```
+file://localhost/
+```
+
+muestra el **listado del directorio raíz** del televisor. Y de ahí se puede seguir navegando por
+`/etc`, `/sbin`, `/basic`, `/3rd`, `/3rd_rw`, etc. También se abren archivos de texto directamente
+(por ejemplo `file://localhost/etc/inittab`).
+
+Esto funciona porque **la propia interfaz del televisor es una página `file://`**:
+
+```
+file://localhost/3rd_rw/UI/hisenseUI/index.html
+```
+
+El motor está configurado para servir la UI desde disco, así que el acceso a archivos locales está
+habilitado por diseño. El navegador de apps de internet además se lanza con
+`--allow-file-access-from-files`.
+
+### Leer archivos de forma automatizada
+
+Una página **servida por HTTP** (desde tu PC o desde el propio televisor) puede leer archivos del
+televisor con un `XMLHttpRequest` **síncrono** a `file://localhost/...`:
+
+```js
+var x = new XMLHttpRequest();
+x.open('GET', 'file://localhost/etc/inittab', false);   // false = síncrono
+x.send(null);
+var contenido = x.responseText;      // ¡el archivo completo!
+```
+
+El motor **no aplica la política de mismo origen** entre `http://` y `file://`, así que una página
+HTTP común puede leer el disco. Con eso se leyó, archivo por archivo: `/etc/inittab`, todo
+`/etc/rc.d`, `/etc/scripts/*`, `/etc/fstab`, `/sbin/*` y más — sin fotos de pantalla.
+
+> **Trampa metodológica:** este método **no distingue** entre un archivo inexistente, un
+> directorio y un archivo de 0 bytes: los tres devuelven `status=0, len=0` sin excepción. Para
+> saber si algo existe hay que usar otra vía (listado real, o buscar la cadena dentro de un
+> binario).
+
+### Mejor todavía: listados reales por DevTools
+
+El navegador de apps (OMI/Chromium) **sí renderiza listados de directorio** cuando se navega a una
+URL `file://`. Combinado con DevTools ([sección anterior](#el-hallazgo-que-abrió-todo-devtools-en-9222)):
+
+```python
+cdp(1, "Page.navigate", {"url": "file:///3rd_rw/UI/hisenseUI/index.html"})
+print(cdp(2, "Runtime.evaluate", {"expression": "document.body.innerText"})["result"]["result"]["value"])
+```
+
+Así se leyeron completos `index.html` de la interfaz, `hiUISDK.js` (465 KB) y los logs de error del
+navegador, que revelaron cómo se lanza cada app.
+
+### Por qué importa
+
+El navegador corre como **root**. Todo lo que root puede leer, la página lo puede leer. Es
+reconocimiento de sistema operativo completo —mapa de particiones, scripts de arranque, servicios,
+versiones de bibliotecas— **sin explotar nada**, y es lo que permitió planear el resto del trabajo
+con información en lugar de suposiciones.
+
 ## Reproducir el reconocimiento
 
 ```sh

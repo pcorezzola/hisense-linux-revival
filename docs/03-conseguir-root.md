@@ -15,6 +15,12 @@ JavaScript en el navegador de apps
                  └─> fork + setsid + socket + bind + execve("/bin/sh")
 ```
 
+> **Reconocimiento previo (sin exploit):** antes de escribir una sola línea se leyó todo el
+> sistema con `file://localhost` y DevTools. El navegador lista directorios y una página HTTP
+> puede leer archivos locales con XHR, porque el motor no aplica mismo origen entre `http://` y
+> `file://` (el navegador corre como root). Ver
+> [doc 02](02-reconocimiento-red.md#lectura-de-todo-el-sistema-de-archivos-con-filelocalhost).
+
 ## 1. El objeto `Hisense` y su API de archivos
 
 El navegador de apps (Presto) expone un plugin `Hisense` con:
