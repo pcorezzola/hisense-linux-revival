@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>NES — TV</title>
+<style>
+  html, body { margin:0; padding:0; background:#000; color:#ccc; font-family:sans-serif; overflow:hidden; }
+  #marco { position:absolute; left:0; top:0; width:1280px; height:720px; background:#000; }
+  /* canvas chico (256x240): el escalado 3x lo hace el compositor, no JavaScript */
+  #pantalla { position:absolute; left:256px; top:0; width:768px; height:720px;
+              image-rendering:-webkit-optimize-contrast; image-rendering:pixelated; }
+  #hud { position:absolute; left:10px; top:8px; font-size:14px; color:#8f8; background:rgba(0,0,0,.5);
+         padding:4px 8px; display:none; }
+  #carga { position:absolute; left:0; top:0; width:1280px; height:720px; text-align:center;
+           padding-top:320px; font-size:22px; }
+</style>
+</head>
+<body>
+<div id="marco">
+  <canvas id="pantalla" width="256" height="240"></canvas>
+  <div id="carga">cargando...</div>
+  <div id="hud"></div>
+</div>
+<script src="jsnes.min.js"></script>
+<script>
+/* NES para el TV — ES5 puro (motor Blink ~35 / OMI 4.2).
+ * Optimizaciones que importan en este CPU:
+ *  - el canvas mide 256x240 y el 3x lo hace el compositor por CSS (no drawImage escalado)
+ *  - el framebuffer se vuelca con un Uint32Array (1 escritura por pixel, no 4)
+ *  - se mide por separado el costo de emular y de pintar (window.__estado)
+ */
+
+var ANCHO = 256, ALTO = 240;
+var vis, vctx, img, vista32, nes;
+var frames = 0, fps = 0, fpsT0 = 0, corriendo = false;
+var audioCtx = null, nodo = null, bufL = [], bufR = [];
+var romActual = '';
+var tEmu = 0, tPintar = 0, msEmu = 0, msPintar = 0;
+
+window.__estado = { rom: '', fps: 0, frames: 0, emu_ms: 0, pintar_ms: 0,
+                    corriendo: false, error: '', audio: false };
+
+function $(id) { return document.getElementById(id); }
+
+function prepararCanvas() {
+    vis = $('pantalla');
+    vctx = vis.getContext('2d');
+    img = vctx.createImageData(ANCHO, ALTO);
+    vista32 = new Uint32Array(img.data.buffer);
+}
+
+/* jsnes entrega 0xBBGGRR; el canvas espera ABGR empaquetado */
+function pintar(framebuffer) {
+    var d = vista32, i, p, t0 = new Date().getTime();
+    for (i = 0; i < ANCHO * ALTO; i++) {
+        p = framebuffer[i];
+        d[i] = 0xFF000000 | ((p & 0xFF) << 16) | (p & 0xFF00) | ((p >> 16) & 0xFF);
+    }
+    vctx.putImageData(img, 0, 0);
+    tPintar += (new Date().getTime() - t0);
+}
+
+/* --- audio --- */
+function prepararAudio() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { return; }
+    try { audioCtx = new AC(); } catch (e) { return; }
+    if (!audioCtx.createScriptProcessor) { return; }
+    nodo = audioCtx.createScriptProcessor(2048, 0, 2);
+    nodo.onaudioprocess = function (ev) {
+        var l = ev.outputBuffer.getChannelData(0), r = ev.outputBuffer.getChannelData(1);
+        var i, v;
+        for (i = 0; i < l.length; i++) {
+            v = bufL.length ? bufL.shift() : 0; l[i] = v;
+            v = bufR.length ? bufR.shift() : 0; r[i] = v;
+        }
+    };
+    nodo.connect(audioCtx.destination);
+    window.__estado.audio = true;
+}
+
+function nuevoNES() {
+    return new jsnes.NES({
+        sampleRate: 44100,
+        onFrame: function (fb) { pintar(fb); },
+        onAudioSample: function (l, r) {
+            if (bufL.length < 8192) { bufL.push(l); bufR.push(r); }
+        }
+    });
+}
+
+/* --- ROM: del mismo servidor, sin CORS --- */
+function cargarROM(nombre) {
+    var x = new XMLHttpRequest();
+    x.overrideMimeType('text/plain; charset=x-user-defined');
+    x.open('GET', 'roms/' + nombre, true);
+    x.onreadystatechange = function () {
+        if (x.readyState !== 4) { return; }
+        if (x.status !== 200 && x.status !== 0) {
+            window.__estado.error = 'HTTP ' + x.status + ' al bajar ' + nombre;
+            $('carga').textContent = window.__estado.error;
+            return;
+        }
+        romActual = nombre;
+        window.__estado.rom = nombre;
+        nes = nuevoNES();
+        try {
+            nes.loadROM(x.responseText);
+        } catch (e) {
+            window.__estado.error = 'loadROM: ' + e;
+            $('carga').textContent = window.__estado.error;
+            return;
+        }
+        corriendo = true;
+        window.__estado.corriendo = true;
+        $('carga').style.display = 'none';
+        $('hud').style.display = 'block';
+        arrancarBucle();
+    };
+    x.send(null);
+}
+
+function arrancarBucle() {
+    var t0 = 0;
+    fpsT0 = new Date().getTime();
+    function paso() {
+        if (nes && corriendo) {
+            /* sin limite artificial: si sobra tiempo, que corra lo mas rapido posible */
+            var a = new Date().getTime();
+            nes.frame();
+            tEmu += (new Date().getTime() - a);
+            frames++;
+            var t = new Date().getTime();
+            if (t - fpsT0 >= 1000) {
+                fps = frames; frames = 0; fpsT0 = t;
+                msEmu = tEmu; msPintar = tPintar; tEmu = 0; tPintar = 0;
+                window.__estado.fps = fps;
+                window.__estado.emu_ms = msEmu;
+                window.__estado.pintar_ms = msPintar;
+                window.__estado.frames += fps;
+                $('hud').textContent = 'NES ' + romActual + ' · ' + fps + ' fps · emu ' +
+                    msEmu + 'ms · pintar ' + msPintar + 'ms';
+            }
+        }
+        requestAnimationFrame(paso);
+    }
+    requestAnimationFrame(paso);
+}
+
+/* --- entrada --- */
+var MAPA = {
+    38: 'BUTTON_UP', 40: 'BUTTON_DOWN', 37: 'BUTTON_LEFT', 39: 'BUTTON_RIGHT',
+    88: 'BUTTON_A', 90: 'BUTTON_A', 32: 'BUTTON_B', 67: 'BUTTON_B',
+    13: 'BUTTON_START', 16: 'BUTTON_SELECT'
+};
+
+function boton(nombre, abajo) {
+    if (!nes || !jsnes.Controller[nombre]) { return; }
+    if (abajo) { nes.buttonDown(1, jsnes.Controller[nombre]); }
+    else { nes.buttonUp(1, jsnes.Controller[nombre]); }
+}
+
+function prepararTeclado() {
+    document.addEventListener('keydown', function (e) {
+        var b = MAPA[e.keyCode];
+        if (b) { if (e.preventDefault) { e.preventDefault(); } boton(b, true); }
+    });
+    document.addEventListener('keyup', function (e) {
+        var b = MAPA[e.keyCode];
+        if (b) { if (e.preventDefault) { e.preventDefault(); } boton(b, false); }
+    });
+}
+
+function prepararGamepad() {
+    var gp = navigator.getGamepads || navigator.webkitGetGamepads;
+    if (!gp) { return; }
+    function leer() {
+        try {
+            var pads = gp.call(navigator) || [];
+            var p = pads[0];
+            if (p && nes) {
+                var ejes = p.axes || [], b = p.buttons || [];
+                boton('BUTTON_LEFT', ejes[0] < -0.4);
+                boton('BUTTON_RIGHT', ejes[0] > 0.4);
+                boton('BUTTON_UP', ejes[1] < -0.4);
+                boton('BUTTON_DOWN', ejes[1] > 0.4);
+                if (b[0]) { boton('BUTTON_A', b[0].pressed); }
+                if (b[1]) { boton('BUTTON_B', b[1].pressed); }
+                if (b[9]) { boton('BUTTON_START', b[9].pressed); }
+                if (b[8]) { boton('BUTTON_SELECT', b[8].pressed); }
+            }
+        } catch (e) {}
+        setTimeout(leer, 50);
+    }
+    leer();
+}
+
+function parametro(nombre) {
+    var m = new RegExp('[?&]' + nombre + '=([^&]+)').exec(location.search);
+    return m ? decodeURIComponent(m[1]) : null;
+}
+
+prepararCanvas();
+prepararTeclado();
+prepararGamepad();
+prepararAudio();
+cargarROM(parametro('rom') || 'prueba.nes');
+</script>
+</body>
+</html>

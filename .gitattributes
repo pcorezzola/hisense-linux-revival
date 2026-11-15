@@ -1,0 +1,15 @@
+# Los scripts y fuentes van con LF: este repositorio se usa en un Linux embebido.
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.py   text eol=lf
+*.c    text eol=lf
+*.h    text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+
+# Artefactos que no son texto
+*.nes binary
+*.so binary
+*.img binary
+binarios/** binary

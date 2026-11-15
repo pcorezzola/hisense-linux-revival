@@ -1,0 +1,10 @@
+# Binarios compilados y artefactos que no conviene versionar
+*.o
+*.so
+*.img
+*.bin
+*.tar
+*.tar.gz
+*.log
+__pycache__/
+.vscode/
