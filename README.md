@@ -155,9 +155,13 @@ docs/
   07-display-nativo.md        DirectFB, libmtal y por qué no se pudo dibujar
   08-experimentos-descartados.md lo que probamos y no funcionó (para no repetirlo)
   09-recetas.md               comandos útiles, copiar y pegar
+  10-decisiones-y-alternativas.md  cada alternativa evaluada y por qué se descartó
 herramientas/                 scripts y fuentes propios
 binarios/                     binarios ARM compilados (dropbear)
 ```
+
+> Si vas a intentar algo, mirá primero el [doc 10](docs/10-decisiones-y-alternativas.md): están
+> todas las alternativas que ya se probaron y descartaron, con el motivo concreto.
 
 ## 9. Hoja de ruta (lo que viene)
 
