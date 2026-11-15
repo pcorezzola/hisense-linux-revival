@@ -80,10 +80,17 @@ Para confirmar el modelo en otra unidad: `GET http://<ip>:56790/dd.xml`, el men�
 | SSH con clave pública que **sobrevive a los reinicios** | ✅ |
 | Persistencia sin tocar el rootfs (hook de arranque del fabricante) | ✅ |
 | Respaldo completo de la eMMC y del firmware oficial | ✅ |
-| Eliminar el bloqueo de espacio de `/3rd_rw` (98% → 39%) | ✅ |
+| Recuperar espacio en `/3rd_rw` (en la unidad de referencia: 98% → 39%) | ✅ *caso concreto* |
 | Mapa del stack gráfico y de audio nativo | ✅ (documentado) |
 | Emuladores NES/Sega/SNES a 60 fps | ❌ *bloqueado* (ver [docs/07](docs/07-display-nativo.md)) |
 | YouTube "renovado" | ⚠️ el player original funciona; búsqueda propia viable |
+
+> **Sobre el espacio de `/3rd_rw`:** el 98% **no es una condición de fábrica**, es el estado de
+> esta unidad después de usarla. El contenido del sistema ocupa ~280 MB de los 750 MB (≈39%), así
+> que una unidad nueva arranca con ~430 MB libres; lo que se acumula es la **caché del navegador
+> de apps**, que crecía hasta llenar la partición. La limpieza sirve en cualquier unidad que use
+> YouTube/Netflix, y el hook ahora la hace automática cuando pasa los 150 MB. No es un defecto del
+> modelo: es el uso.
 
 Detalle completo del recorrido en la carpeta [`docs/`](docs/).
 
@@ -232,3 +239,4 @@ propio hardware y entendiendo el riesgo: un equipo mal manipulado puede quedar s
 Los binarios de dropbear incluidos se compilaron desde la fuente firmada de Debian (licencia
 MIT de Dropbear). Los scripts y textos propios de este repositorio son de uso libre; si te
 sirven, citá el repo.
+

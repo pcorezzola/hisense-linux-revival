@@ -46,9 +46,25 @@ equipo no arranca y la única recuperación sería UART + `FlashTool` (abrir el 
 
 **Conclusión: no se reparticiona.** Si falta espacio, se libera o se usa `/data` / un USB.
 
-## El problema típico de espacio (y su solución)
+## Espacio en `/3rd_rw`: qué es de fábrica y qué se acumula
 
-La unidad tenía `/3rd_rw` al **98%** (14 MB libres). El desglose:
+Conviene separar dos cosas, porque es fácil confundirlas:
+
+| Concepto | Tamaño aproximado | ¿Varía entre unidades? |
+|---|---|---|
+| Contenido del sistema (UI, launcher, apps, IME) | **~280 MB** de 750 MB (≈39%) | No: es el mismo firmware |
+| **Caché del navegador de apps** | de 0 al límite de la partición | **Sí: depende del uso** |
+
+La partición tiene 750 MB y el sistema deja ~430 MB libres **de fábrica**. El problema no es la
+plataforma: es que la **caché del navegador de apps** (el que usan YouTube, Netflix y HbbTV)
+crece con cada video y **nunca se limpia sola**.
+
+El propio fabricante lo sabe: `/etc/scripts/update.sh` tiene una función `clear_browser_cache()`
+que borra `internet_browser/*/Cache/*`. Existe justamente porque la caché se desborda.
+
+### Caso concreto: la unidad de referencia
+
+Estaba al **98%** (14 MB libres), y el desglose lo explicaba:
 
 | Ruta | Tamaño | Qué era |
 |---|---|---|
@@ -61,22 +77,37 @@ La unidad tenía `/3rd_rw` al **98%** (14 MB libres). El desglose:
 Limpiar **solo la caché** devolvió 417 MB:
 
 ```
-antes:  697.5M usados / 14M libres   (98%)
-después: 280.2M usados / 431.3M libres (39%)
+antes:   697.5M usados /  14.0M libres  (98%)   <- estado de esa unidad, tras mucho uso
+después: 280.2M usados / 431.3M libres  (39%)   <- estado de fábrica
 ```
 
-El propio firmware tiene `clear_browser_cache()` en `/etc/scripts/update.sh`, así que es una
-operación prevista. Es seguro hacerlo con el navegador de apps cerrado:
+> **No es un defecto del modelo.** En una unidad recién instalada, o poco usada, `/3rd_rw` está
+> en ~39%. La limpieza se vuelve necesaria **a medida que se usan las apps de internet**, en
+> cualquier unidad de este chasis.
+
+### Cómo resolverlo (en cualquier unidad)
 
 ```sh
 busybox ps | busybox grep '[i]nternet_browser' || \
   busybox rm -rf /3rd_rw/internet_browser/*/Cache/*
+busybox df -h /3rd_rw
 ```
 
-> **Ojo con `iqqi`**: parece "el teclado chino" y es tentador borrarlo, pero `libIQQILib.so` está
-> mapeada por el launcher y los `tvstore` (verificable en `/proc/<pid>/maps`). Borrar la carpeta
-> entera rompe el teclado en el siguiente arranque. La base de predicción sí se puede recortar,
-> conservando `Spanish` y `English`.
+Mejor todavía: dejar la limpieza automática en el hook de arranque, con umbral, como hace
+[`../herramientas/hook-install.sh`](../herramientas/hook-install.sh) (limpia si supera 150 MB y
+nunca con el navegador abierto).
+
+### Y lo que **no** hay que borrar
+
+`iqqi` parece "el teclado chino" y es tentador, pero `libIQQILib.so` está mapeada por el launcher
+y por los `tvstore` (verificable en `/proc/<pid>/maps`): borrar la carpeta entera rompe el teclado
+en el siguiente arranque. La base de predicción sí se puede recortar conservando `Spanish` y
+`English` (~84 MB), nunca la `lib`.
+
+### Por qué no se reparticiona para tener más espacio
+
+Ver [doc 07/05 arriba](#por-qué-no-se-puede-agrandar-una-partición): son offsets secuenciales del
+`cmdline` de U-Boot. Con la caché limpia y el umbral automático, 430 MB alcanzan de sobra.
 
 ## Qué hay en `/3rd` (solo lectura)
 
@@ -111,3 +142,4 @@ habilitado. `/sbin` no tiene `sshd` en ninguna versión conocida del firmware.
 
 **No modificar el rootfs**: es squashfs de solo lectura y vive en la partición de mayor riesgo.
 Todo lo que hace este proyecto queda en `/data` y `/3rd_rw`.
+

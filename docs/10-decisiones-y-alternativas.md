@@ -39,7 +39,7 @@ descarte y la evidencia que lo respalda. Sirve para no repetir caminos ya cerrad
 | **USB fijo + bind-mount de la caché** | Viable, pero agrega hardware y depende de que el puerto tenga energía; además el kernel **no tiene `cifs`/`nfs`**, así que tampoco sirve para montar un share del servidor. Queda como opción si en el futuro hace falta más espacio para medios. |
 | Borrar "apps inservibles" | Impacto bajo (`picasa`+`terratv`+`skype`+`ginga` ≈ 10 MB) y riesgo de romper referencias del launcher. |
 | Borrar `iqqi` entero | **No**: es el IME con predicción en 32 idiomas y su `lib` está mapeada por el launcher y los `tvstore` (visible en `/proc/<pid>/maps`). Borrarlo rompe el teclado. |
-| ✅ **Elegida: limpiar la caché del navegador** (417 MB) + umbral automático de 150 MB en el hook | El propio firmware prevé esta limpieza (`clear_browser_cache()` en `update.sh`). Devolvió 417 MB y no rompe nada. |
+| ✅ **Elegida: limpiar la caché del navegador** (417 MB en la unidad de referencia) + umbral automático de 150 MB en el hook | El propio firmware prevé esta limpieza (`clear_browser_cache()` en `update.sh`). Ojo: **no es un defecto del modelo** — de fábrica la partición está al ~39%; la caché crece con el uso de YouTube/Netflix. Devolvió 417 MB y no rompe nada. |
 
 ---
 
@@ -116,3 +116,4 @@ proyecto son reversibles: borrar un archivo en `/data` o `/3rd_rw` deshace todo.
 | YouTube | UI propia + player oficial | extractor propio, yt-dlp, Piped, app Android |
 | Netflix/Prime | dispositivo externo | APK, web DRM, actualizar NRD |
 | firmware | no tocar | (todas las variantes de flasheo) |
+
